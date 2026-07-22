@@ -1,0 +1,65 @@
+name: ingest
+
+# One workflow, not two. Two scheduled workflows committing to the same
+# branch race each other and one push gets rejected. Both channels run
+# here in sequence and produce a single commit.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # 4x daily, offset off the hour so the runner queue is shorter
+  workflow_dispatch:          # manual trigger for the first run and for testing
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kaf-bio-ingest
+  cancel-in-progress: false   # never cancel mid-write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Each channel is allowed to fail without taking the other down.
+      # An upstream outage should cost one run, not the whole pipeline.
+      - name: CH.01 news
+        continue-on-error: true
+        run: python scripts/ingest_news.py
+
+      - name: CH.02 literature
+        continue-on-error: true
+        run: python scripts/ingest_papers.py
+
+      - name: Commit archive
+        run: |
+          git config user.name  "kaf-bio-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data state
+          if git diff --staged --quiet; then
+            echo "no new records this run"
+          else
+            git commit -m "ingest: $(date -u +%Y-%m-%dT%H:%MZ)"
+            # Another run may have landed while this one was collecting.
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+            git push
+          fi
+
+  # Runs the offline fixture suite on every push to the scripts.
+  # No network, so it cannot be broken by an upstream API changing.
+  test:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/_selftest.py
