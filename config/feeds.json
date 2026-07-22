@@ -1,0 +1,13 @@
+{
+  "_comment": "Direct RSS sources, ingested in addition to GDELT. Keyword filter still applies. 'tier' is descriptive metadata only and carries no credibility judgement. Add or remove freely.",
+  "feeds": [
+    { "name": "WHO Disease Outbreak News", "tier": "official",   "url": "https://www.who.int/feeds/entity/csr/don/en/rss.xml" },
+    { "name": "CDC Newsroom",             "tier": "official",   "url": "https://tools.cdc.gov/api/v2/resources/media/403372.rss" },
+    { "name": "ECDC News",                "tier": "official",   "url": "https://www.ecdc.europa.eu/en/rss-feeds/news" },
+    { "name": "Outbreak News Today",      "tier": "trade",      "url": "https://outbreaknewstoday.com/feed/" },
+    { "name": "STAT News",                "tier": "press",      "url": "https://www.statnews.com/feed/" },
+    { "name": "Science Daily Microbio",   "tier": "press",      "url": "https://www.sciencedaily.com/rss/plants_animals/microbes_and_more.xml" },
+    { "name": "Nature News",              "tier": "press",      "url": "https://www.nature.com/nature.rss" },
+    { "name": "bioRxiv Microbiology",     "tier": "preprint",   "url": "https://connect.biorxiv.org/biorxiv_xml.php?subject=microbiology" }
+  ]
+}
