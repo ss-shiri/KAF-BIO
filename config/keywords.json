@@ -1,0 +1,35 @@
+{
+  "_comment": "Single tuning point. Edit here and both channels retune. Phrases with spaces are quoted automatically at query time.",
+  "news": [
+    "synthetic biology",
+    "biosecurity",
+    "biodefense",
+    "biosafety",
+    "gain of function",
+    "dual use research",
+    "bioweapon",
+    "pathogen surveillance",
+    "lab leak",
+    "select agent"
+  ],
+  "papers": [
+    "synthetic biology",
+    "biosecurity",
+    "biodefense",
+    "biosafety",
+    "gain of function",
+    "dual use research of concern",
+    "pathogen surveillance",
+    "virology",
+    "metagenomics",
+    "antimicrobial resistance"
+  ],
+  "settings": {
+    "news_timespan": "1d",
+    "news_max_per_query": 75,
+    "papers_lookback_days": 7,
+    "papers_page_size": 100,
+    "latest_window_days": 14,
+    "seen_retention_days": 180
+  }
+}
