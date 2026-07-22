@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KAF-BIO / Signal Aggregator</title>
+<meta name="description" content="A minimal two-channel aggregator for open source biology news and literature. Headline and link only. No verification, no analysis.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   KAF-BIO tokens
+   Ground: frosted slide glass, cool. Not paper, not terminal.
+   Stains: safranin (news) and crystal violet (literature),
+   borrowed from differential staining. The pair distinguishes
+   two classes without ranking them. That is the whole thesis.
+   ============================================================ */
+:root{
+  --ground:#EFF1EE;
+  --surface:#FFFFFF;
+  --ink:#16181A;
+  --ink-soft:#5F666B;
+  --ink-faint:#949A9E;
+  --hairline:#D4D8D3;
+  --hairline-soft:#E2E5E1;
+  --safranin:#A83348;
+  --violet:#463178;
+  --focus:#0B6E5F;
+  --lane-w:1px;
+  --gut:22px;
+}
+[data-theme="dark"]{
+  --ground:#121417;
+  --surface:#191C20;
+  --ink:#E7E9E6;
+  --ink-soft:#949CA3;
+  --ink-faint:#666E75;
+  --hairline:#2A2F35;
+  --hairline-soft:#22262B;
+  --safranin:#E0788A;
+  --violet:#A99BE0;
+  --focus:#3FD3B8;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Sans Condensed",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  padding:0 20px 80px;
+}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:1px}
+
+.wrap{max-width:1180px;margin:0 auto}
+
+/* ---------- specimen label masthead ---------- */
+.mast{
+  padding:38px 0 18px;
+  border-bottom:1px solid var(--hairline);
+}
+.mast-row{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  flex-wrap:wrap;
+}
+.mark{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:clamp(26px,5.2vw,40px);
+  font-weight:600;
+  letter-spacing:0.24em;
+  text-indent:0.24em;
+  line-height:1;
+  color:var(--ink);
+}
+.mark .dash{color:var(--ink-faint);font-weight:400}
+.mast-meta{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  text-align:right;
+  line-height:1.9;
+}
+.mast-sub{
+  margin-top:14px;
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;
+  letter-spacing:0.1em;
+  color:var(--ink-soft);
+}
+.mast-sub b{color:var(--ink);font-weight:500}
+
+/* ---------- control bar ---------- */
+.controls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:16px 0 14px;
+  border-bottom:1px solid var(--hairline-soft);
+}
+.search{
+  flex:1 1 240px;
+  min-width:180px;
+  position:relative;
+}
+.search input{
+  width:100%;
+  background:var(--surface);
+  border:1px solid var(--hairline);
+  color:var(--ink);
+  font-family:"IBM Plex Mono",monospace;
+  font-size:12px;
+  letter-spacing:0.04em;
+  padding:9px 11px 9px 30px;
+  border-radius:2px;
+}
+.search input::placeholder{color:var(--ink-faint);letter-spacing:0.08em}
+.search::before{
+  content:"/";
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-faint);
+  pointer-events:none;
+}
+.btn{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  background:transparent;
+  border:1px solid var(--hairline);
+  color:var(--ink-soft);
+  padding:9px 12px;
+  border-radius:2px;
+  cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.btn:hover{color:var(--ink);border-color:var(--ink-soft)}
+
+/* ---------- keyword chips ---------- */
+.chips{
+  display:flex;flex-wrap:wrap;gap:6px;
+  padding:12px 0 0;
+}
+.chip{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:10px;
+  letter-spacing:0.09em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+  background:transparent;
+  border:1px solid var(--hairline-soft);
+  padding:4px 8px;
+  border-radius:2px;
+  cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.chip:hover{color:var(--ink);border-color:var(--hairline)}
+.chip[aria-pressed="true"]{
+  color:var(--surface);
+  background:var(--ink);
+  border-color:var(--ink);
+}
+
+/* ---------- channels ---------- */
+.channels{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0;
+  margin-top:30px;
+}
+.ch{padding:0 0 0 0}
+.ch--news{padding-right:38px;border-right:1px solid var(--hairline-soft)}
+.ch--lit{padding-left:38px}
+
+.ch-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:4px}
+.ch-id{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+}
+.ch--news .ch-id{color:var(--safranin)}
+.ch--lit .ch-id{color:var(--violet)}
+.status{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:9.5px;letter-spacing:0.14em;text-transform:uppercase;
+  color:var(--ink-faint);
+  border:1px solid var(--hairline-soft);
+  padding:2px 6px;border-radius:2px;white-space:nowrap;
+}
+.status[data-s="live"]{color:var(--focus);border-color:var(--focus)}
+.status[data-s="sample"]{color:var(--ink-soft);border-color:var(--hairline)}
+.ch-note{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:10px;letter-spacing:0.07em;
+  color:var(--ink-faint);
+  margin-bottom:20px;
+}
+
+/* ---------- the lane ---------- */
+.lane{position:relative;padding-left:var(--gut)}
+.lane::before{
+  content:"";position:absolute;left:0;top:6px;bottom:6px;
+  width:var(--lane-w);background:var(--hairline);
+}
+.entry{position:relative;padding:11px 0;border-bottom:1px solid var(--hairline-soft)}
+.entry:last-child{border-bottom:0}
+.entry::before{
+  content:"";position:absolute;
+  left:calc(-1 * var(--gut));top:19px;
+  width:12px;height:var(--lane-w);
+  background:var(--hairline);
+  transition:background .15s,width .15s;
+}
+.entry:hover::before{width:var(--gut);background:var(--ink)}
+.ch--news .entry:hover::before{background:var(--safranin)}
+.ch--lit .entry:hover::before{background:var(--violet)}
+
+.meta{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:9.5px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--ink-faint);
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  margin-bottom:3px;
+}
+.meta .sep{opacity:.45}
+.code{font-weight:600;color:var(--ink-soft)}
+.tag{
+  border:1px solid currentColor;
+  padding:0 4px;border-radius:2px;
+  font-size:8.5px;letter-spacing:0.12em;
+}
+.tag--pre{color:var(--violet)}
+.tag--jrn{color:var(--ink-faint)}
+.tag--ret{color:var(--safranin);font-weight:600}
+
+.title{
+  font-size:15px;
+  font-weight:500;
+  line-height:1.32;
+  letter-spacing:-0.002em;
+  text-decoration:none;
+  display:block;
+  color:var(--ink);
+  transition:color .15s;
+}
+.title:hover{color:var(--ink-soft);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+
+.empty{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:0.07em;
+  color:var(--ink-faint);padding:26px 0;
+}
+
+/* ---------- footer ---------- */
+.colophon{
+  margin-top:56px;padding-top:22px;
+  border-top:1px solid var(--hairline);
+  display:grid;grid-template-columns:1.4fr 1fr;gap:40px;
+}
+.cx-label{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:9.5px;letter-spacing:0.16em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:10px;
+}
+.disclaimer{font-size:13.5px;line-height:1.55;color:var(--ink-soft);max-width:56ch}
+.disclaimer b{color:var(--ink);font-weight:600}
+.links{display:flex;flex-direction:column;gap:7px}
+.links a{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:0.05em;
+  color:var(--ink-soft);text-decoration:none;
+  display:flex;gap:9px;align-items:baseline;
+  transition:color .15s;
+}
+.links a:hover{color:var(--ink)}
+.links .arrow{color:var(--ink-faint);font-size:10px}
+.links a:hover .arrow{color:var(--safranin)}
+.sig{
+  margin-top:30px;
+  font-family:"IBM Plex Mono",monospace;
+  font-size:9.5px;letter-spacing:0.13em;text-transform:uppercase;
+  color:var(--ink-faint);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:860px){
+  .channels{grid-template-columns:1fr;gap:0}
+  .ch--news{padding-right:0;border-right:0;padding-bottom:34px;border-bottom:1px solid var(--hairline-soft)}
+  .ch--lit{padding-left:0;padding-top:34px}
+  .colophon{grid-template-columns:1fr;gap:28px}
+  .mast-meta{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="mast">
+    <div class="mast-row">
+      <div>
+        <div class="mark">KAF<span class="dash">&middot;</span>BIO</div>
+      </div>
+      <div class="mast-meta">
+        <div>Open source biology signal aggregator</div>
+        <div id="stamp">&nbsp;</div>
+      </div>
+    </div>
+    <p class="mast-sub">
+      Headline and link only. <b>No verification. No analysis. No ranking.</b>
+      Sources appear at every credibility level and are labelled, not judged.
+    </p>
+  </header>
+
+  <div class="controls">
+    <div class="search">
+      <input id="q" type="search" placeholder="filter headlines and titles" aria-label="Filter entries by text">
+    </div>
+    <button class="btn" id="clear" type="button">Reset</button>
+    <button class="btn" id="theme" type="button" aria-label="Toggle colour scheme">Dark</button>
+  </div>
+  <div class="chips" id="chips" role="group" aria-label="Filter by keyword"></div>
+
+  <main class="channels">
+
+    <section class="ch ch--news" aria-labelledby="ch1">
+      <div class="ch-head">
+        <h2 class="ch-id" id="ch1">CH.01 / News</h2>
+        <span class="status" id="s-news" data-s="loading">Loading</span>
+      </div>
+      <p class="ch-note">Global open sources. Credible and non credible alike.</p>
+      <div class="lane" id="lane-news"></div>
+    </section>
+
+    <section class="ch ch--lit" aria-labelledby="ch2">
+      <div class="ch-head">
+        <h2 class="ch-id" id="ch2">CH.02 / Literature</h2>
+        <span class="status" id="s-lit" data-s="loading">Loading</span>
+      </div>
+      <p class="ch-note">Peer reviewed and preprint. Retractions flagged, not removed.</p>
+      <div class="lane" id="lane-lit"></div>
+    </section>
+
+  </main>
+
+  <footer class="colophon">
+    <div>
+      <div class="cx-label">Scope</div>
+      <p class="disclaimer">
+        This is an aggregator, not a verifier. <b>Listing a source is not an endorsement of it.</b>
+        Entries carry the publisher's own headline or title and a link to the original. Nothing is
+        hosted here, nothing is rewritten, nothing is scored. Preprints, retracted papers and low
+        credibility outlets are shown deliberately, each marked with its type so you can judge for
+        yourself. Verification and assessment happen downstream, not on this page.
+      </p>
+    </div>
+    <div>
+      <div class="cx-label">Sajad Shiri</div>
+      <nav class="links">
+        <a href="https://ss-shiri.github.io/kaf-cbrne/" target="_blank" rel="noopener"><span class="arrow">&rarr;</span>CBRNE OSINT Reading Room</a>
+        <a href="https://ss-shiri.github.io/ALEF-OSINT/" target="_blank" rel="noopener"><span class="arrow">&rarr;</span>ALEF OSINT / 1,290 tools</a>
+        <a href="https://www.linkedin.com/in/sajad-shiri/" target="_blank" rel="noopener"><span class="arrow">&rarr;</span>LinkedIn</a>
+      </nav>
+    </div>
+  </footer>
+
+  <div class="sig">
+    <span id="counts">&nbsp;</span>
+    <span>Append only archive &middot; every entry keeps its first seen timestamp</span>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- keyword set: edit this one array to retune both channels ---------- */
+  var KEYWORDS = [
+    "synthetic biology","biosecurity","biodefense","biosafety",
+    "virology","microbiology","biotechnology","gain of function",
+    "dual use research","pathogen surveillance"
+  ];
+
+  /* ---------- fallback dataset, shown only if live fetch fails ----------
+     Every field says SAMPLE. Nothing here pretends to be a real report.  */
+  var SAMPLE_NEWS = KEYWORDS.slice(0,6).map(function(k,i){
+    return {
+      first_seen_utc:new Date(Date.now()-i*5400000).toISOString(),
+      source_name:"SAMPLE",
+      title:"Placeholder entry for the \u201c"+k+"\u201d query. Live ingest not reachable from this browser.",
+      url:"#",
+      matched_keywords:[k],
+      type:"news"
+    };
+  });
+  var SAMPLE_LIT = KEYWORDS.slice(0,6).map(function(k,i){
+    return {
+      first_seen_utc:new Date(Date.now()-i*7200000).toISOString(),
+      source_name:"SAMPLE",
+      title:"Placeholder record for the \u201c"+k+"\u201d query. Live ingest not reachable from this browser.",
+      url:"#",
+      matched_keywords:[k],
+      type:i%3===0?"pre":"jrn"
+    };
+  });
+
+  var state={news:[],lit:[],q:"",kw:null};
+
+  /* ---------- helpers ---------- */
+  function esc(s){
+    return String(s==null?"":s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  function shortCode(name){
+    if(!name) return "---";
+    var s=String(name).replace(/^www\./,"").split(".")[0].replace(/[^A-Za-z0-9]/g,"");
+    return (s.slice(0,3)||"---").toUpperCase();
+  }
+  function stamp(iso){
+    var d=new Date(iso);
+    if(isNaN(d)) return "--:--";
+    var p=function(n){return n<10?"0"+n:""+n;};
+    return p(d.getUTCDate())+" "+["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"][d.getUTCMonth()]
+           +" "+p(d.getUTCHours())+":"+p(d.getUTCMinutes())+"Z";
+  }
+  function matchKw(text){
+    var t=String(text).toLowerCase(),hit=[];
+    for(var i=0;i<KEYWORDS.length;i++){ if(t.indexOf(KEYWORDS[i])>-1) hit.push(KEYWORDS[i]); }
+    return hit;
+  }
+  function setStatus(el,mode,label){
+    el.setAttribute("data-s",mode);
+    el.textContent=label;
+  }
+
+  /* ---------- render ---------- */
+  var TAGS={pre:["tag--pre","PRE"],jrn:["tag--jrn","JRN"],ret:["tag--ret","RET"]};
+
+  function render(list,mountId){
+    var mount=document.getElementById(mountId);
+    var rows=list.filter(function(e){
+      if(state.kw && (e.matched_keywords||[]).indexOf(state.kw)<0) return false;
+      if(state.q && String(e.title).toLowerCase().indexOf(state.q)<0) return false;
+      return true;
+    });
+    if(!rows.length){ mount.innerHTML='<p class="empty">No entries match the current filter.</p>'; return; }
+    mount.innerHTML=rows.map(function(e){
+      var tag="";
+      if(TAGS[e.type]) tag='<span class="tag '+TAGS[e.type][0]+'">'+TAGS[e.type][1]+'</span>';
+      var safeUrl=(e.url&&e.url!=="#")?esc(e.url):"#";
+      return ''
+        +'<article class="entry">'
+        +  '<div class="meta">'
+        +    '<span>'+esc(stamp(e.first_seen_utc))+'</span>'
+        +    '<span class="sep">/</span>'
+        +    '<span class="code">'+esc(shortCode(e.source_name))+'</span>'
+        +    (tag?'<span class="sep">/</span>'+tag:'')
+        +  '</div>'
+        +  '<a class="title" href="'+safeUrl+'"'+(safeUrl!=="#"?' target="_blank" rel="noopener nofollow"':'')+'>'
+        +    esc(e.title)
+        +  '</a>'
+        +'</article>';
+    }).join("");
+  }
+
+  function renderAll(){
+    render(state.news,"lane-news");
+    render(state.lit,"lane-lit");
+    document.getElementById("counts").textContent=
+      state.news.length+" news / "+state.lit.length+" literature";
+  }
+
+  /* ---------- chips ---------- */
+  (function(){
+    var box=document.getElementById("chips");
+    box.innerHTML=KEYWORDS.map(function(k){
+      return '<button class="chip" type="button" aria-pressed="false" data-k="'+esc(k)+'">'+esc(k)+'</button>';
+    }).join("");
+    box.addEventListener("click",function(ev){
+      var b=ev.target.closest(".chip"); if(!b) return;
+      var k=b.getAttribute("data-k");
+      state.kw=(state.kw===k)?null:k;
+      Array.prototype.forEach.call(box.querySelectorAll(".chip"),function(c){
+        c.setAttribute("aria-pressed",String(c.getAttribute("data-k")===state.kw));
+      });
+      renderAll();
+    });
+  })();
+
+  /* ---------- controls ---------- */
+  document.getElementById("q").addEventListener("input",function(e){
+    state.q=e.target.value.trim().toLowerCase(); renderAll();
+  });
+  document.getElementById("clear").addEventListener("click",function(){
+    state.q=""; state.kw=null;
+    document.getElementById("q").value="";
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(c){
+      c.setAttribute("aria-pressed","false");
+    });
+    renderAll();
+  });
+  document.getElementById("theme").addEventListener("click",function(){
+    var dark=document.documentElement.getAttribute("data-theme")==="dark";
+    document.documentElement.setAttribute("data-theme",dark?"light":"dark");
+    this.textContent=dark?"Dark":"Light";
+  });
+
+  /* ---------- archive loader ----------
+     The site now reads what GitHub Actions committed. No browser CORS
+     dependency, no upstream rate limits, and the archive is permanent.
+     Falls back to a live sweep only if data/latest.json is not there yet
+     (that is, before the first workflow run).                          */
+
+  function fromArchive(){
+    return fetch("data/latest.json",{cache:"no-store"}).then(function(r){
+      if(!r.ok) throw new Error("http "+r.status);
+      return r.json();
+    }).then(function(d){
+      if(!d || (!d.news && !d.papers)) throw new Error("empty");
+      state.news = d.news || [];
+      state.lit  = d.papers || [];
+      var age = d.generated_utc ? " / "+stamp(d.generated_utc) : "";
+      setStatus(document.getElementById("s-news"),"live","Archive"+age);
+      setStatus(document.getElementById("s-lit"), "live","Archive"+age);
+      return true;
+    });
+  }
+
+  /* ---------- fallback: direct sweep, used only before first ingest ---------- */
+
+  function liveLit(){
+    var q='('+KEYWORDS.map(function(k){return '"'+k+'"';}).join(" OR ")+')';
+    var url="https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+          +"?query="+encodeURIComponent(q)
+          +"&format=json&pageSize=40&sort="+encodeURIComponent("P_PDATE_D desc")
+          +"&resultType=lite";
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error("http "+r.status);
+      return r.json();
+    }).then(function(d){
+      var res=(d&&d.resultList&&d.resultList.result)||[];
+      if(!res.length) throw new Error("empty");
+      state.lit=res.map(function(a){
+        var isPre=a.source==="PPR";
+        var isRet=/retract/i.test(a.pubType||"");
+        var link=a.doi?("https://doi.org/"+a.doi)
+                      :("https://europepmc.org/article/"+(a.source||"MED")+"/"+(a.id||""));
+        return {
+          first_seen_utc:(a.firstPublicationDate?a.firstPublicationDate+"T00:00:00Z":new Date().toISOString()),
+          source_name:a.journalTitle||(isPre?"preprint":"unknown venue"),
+          title:a.title||"(untitled record)",
+          url:link,
+          matched_keywords:matchKw((a.title||"")+" "+(a.journalTitle||"")),
+          type:isRet?"ret":(isPre?"pre":"jrn")
+        };
+      });
+      setStatus(document.getElementById("s-lit"),"live","Direct / Europe PMC");
+    }).catch(function(){
+      state.lit=SAMPLE_LIT;
+      setStatus(document.getElementById("s-lit"),"sample","Sample data");
+    });
+  }
+
+  function liveNews(){
+    var q=KEYWORDS.map(function(k){return k.indexOf(" ")>-1?'"'+k+'"':k;}).join(" OR ");
+    var url="https://api.gdeltproject.org/api/v2/doc/doc"
+          +"?query="+encodeURIComponent("("+q+")")
+          +"&mode=artlist&maxrecords=40&format=json&sort=datedesc&timespan=7d";
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error("http "+r.status);
+      return r.json();
+    }).then(function(d){
+      var arts=(d&&d.articles)||[];
+      if(!arts.length) throw new Error("empty");
+      state.news=arts.map(function(a){
+        var s=String(a.seendate||"");
+        var iso=s.length>=15
+          ? s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8)+"T"+s.slice(9,11)+":"+s.slice(11,13)+":00Z"
+          : new Date().toISOString();
+        return {
+          first_seen_utc:iso,
+          source_name:a.domain||"unknown",
+          title:a.title||"(untitled item)",
+          url:a.url||"#",
+          matched_keywords:matchKw(a.title||""),
+          type:"news"
+        };
+      });
+      setStatus(document.getElementById("s-news"),"live","Direct / GDELT");
+    }).catch(function(){
+      state.news=SAMPLE_NEWS;
+      setStatus(document.getElementById("s-news"),"sample","Sample data");
+    });
+  }
+
+  /* ---------- boot ---------- */
+  document.getElementById("stamp").textContent="Loaded "+stamp(new Date().toISOString());
+  fromArchive()
+    .then(renderAll)
+    .catch(function(){
+      return Promise.all([liveNews(),liveLit()]).then(renderAll);
+    });
+
+})();
+</script>
+</body>
+</html>
